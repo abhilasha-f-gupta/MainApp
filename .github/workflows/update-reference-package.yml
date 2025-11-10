@@ -49,11 +49,12 @@ jobs:
 
       # Create Pull Request
       - name: Create Pull Request
-        if: success()
-        uses: peter-evans/create-pull-request@v5
-        with:
-          token: ${{ secrets.PAT_TOKEN }}
-          branch: update-package-to-${{ env.VERSION }}
-          base: main
-          title: "Update ReferenceAppPackage to ${{ env.VERSION }}"
-          body: "This PR updates ReferenceAppPackage to version ${{ env.VERSION }}."
+        env:
+          GITHUB_TOKEN: ${{ secrets.PAT_TOKEN }}
+        run: |
+          gh auth login --with-token <<< "${GITHUB_TOKEN}"
+          gh pr create \
+            --head "update-package-to-${VERSION}" \
+            --base "main" \
+            --title "Update ReferenceAppPackage to ${VERSION}" \
+            --body "This PR updates ReferenceAppPackage to version ${VERSION}."
