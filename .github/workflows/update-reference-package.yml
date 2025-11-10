@@ -12,6 +12,8 @@ jobs:
       # Checkout the MainApp repo
       - name: Checkout MainApp
         uses: actions/checkout@v3
+        with:
+          token: ${{ secrets.PAT_TOKEN }}
 
       # Get the version from ReferenceAppPackage event
       - name: Read new version
@@ -25,17 +27,29 @@ jobs:
           VERSION=${VERSION}
           echo "Updating ReferenceAppPackage to version $VERSION in Xcode project"
 
-          # Replace the old tag with the new version in project.pbxproj
-          sed -i '' "s#https://github.com/abhilasha-f-gupta/ReferenceAppPackage.git@.*#https://github.com/abhilasha-f-gupta/ReferenceAppPackage.git@$VERSION#g" MainApp.xcodeproj/project.pbxproj
+          # Debug: show the current line
+          grep "ReferenceAppPackage.git@" MainApp.xcodeproj/project.pbxproj || true
 
-          # Create a new branch
+          # Robust sed: replace any old version after @
+          sed -i '' "s#\(ReferenceAppPackage.git@\)[0-9.]*#\1$VERSION#g" MainApp.xcodeproj/project.pbxproj
+
+          # Debug: show updated line
+          grep "ReferenceAppPackage.git@" MainApp.xcodeproj/project.pbxproj || true
+
+          # Create a new branch only if there are changes
           git checkout -b update-package-to-$VERSION
           git add MainApp.xcodeproj/project.pbxproj
-          git commit -m "Update ReferenceAppPackage to $VERSION"
-          git push origin update-package-to-$VERSION
+          
+          if git diff --cached --quiet; then
+            echo "No changes to commit. Version is already up-to-date."
+          else
+            git commit -m "Update ReferenceAppPackage to $VERSION"
+            git push origin update-package-to-$VERSION
+          fi
 
-      # Create a PR in MainApp
+      # Create a PR in MainApp only if changes were committed
       - name: Create Pull Request
+        if: success() && steps.update.outputs.changes == 'true'
         uses: peter-evans/create-pull-request@v5
         with:
           token: ${{ secrets.PAT_TOKEN }}
