@@ -9,30 +9,51 @@ jobs:
     runs-on: macos-latest
 
     steps:
-      # Checkout MainApp repo with full history and PAT token
+      # Checkout MainApp repo
       - name: Checkout MainApp
         uses: actions/checkout@v3
         with:
           token: ${{ secrets.PAT_TOKEN }}
-          fetch-depth: 0
 
-      # Get the version from ReferenceAppPackage event
+      # Read the new version from the event payload
       - name: Read new version
+        id: vars
         run: |
           echo "VERSION=${{ github.event.client_payload.version }}" >> $GITHUB_ENV
-          echo "Version to update: $VERSION"
+          echo "New version: ${{ github.event.client_payload.version }}"
 
-      # Create Pull Request with updated ReferenceAppPackage
+      # Update the version in the .pbxproj file
+      - name: Update ReferenceAppPackage version in Xcode project
+        run: |
+          echo "Updating ReferenceAppPackage to version ${VERSION} in project.pbxproj"
+          sed -i '' -E "s/(minimumVersion = )[0-9]+\.[0-9]+\.[0-9]+/\1${VERSION}/" MainApp.xcodeproj/project.pbxproj
+          
+          echo "Changed lines:"
+          grep "minimumVersion" MainApp.xcodeproj/project.pbxproj
+
+      # Commit and push only if changes exist
+      - name: Commit and push changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git checkout -b update-package-to-${VERSION}
+          if git diff --quiet; then
+            echo "No version change detected, skipping commit and PR creation."
+            exit 0
+          fi
+
+          git add MainApp.xcodeproj/project.pbxproj
+          git commit -m "Update ReferenceAppPackage to version ${VERSION}"
+          git push origin update-package-to-${VERSION}
+
+      # Create Pull Request
       - name: Create Pull Request
+        if: success()
         uses: peter-evans/create-pull-request@v5
         with:
           token: ${{ secrets.PAT_TOKEN }}
-          branch: "update-package-to-${{ env.VERSION }}"
+          branch: update-package-to-${{ env.VERSION }}
           base: main
-          commit-message: "Update ReferenceAppPackage to ${{ env.VERSION }}"
           title: "Update ReferenceAppPackage to ${{ env.VERSION }}"
-          body: |
-            This PR updates ReferenceAppPackage to version ${{ env.VERSION }} in the Xcode project.
-          update: |
-            # Replace the old ReferenceAppPackage version with the new one
-            sed -i '' "s#\(ReferenceAppPackage.git@\)[0-9.]*#\1${{ env.VERSION }}#g" MainApp.xcodeproj/project.pbxproj
+          body: "This PR updates ReferenceAppPackage to version ${{ env.VERSION }}."
