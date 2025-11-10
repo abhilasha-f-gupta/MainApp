@@ -1,0 +1,45 @@
+name: Update ReferenceAppPackage
+
+on:
+  repository_dispatch:
+    types: [reference-package-released]
+
+jobs:
+  update-package:
+    runs-on: macos-latest
+
+    steps:
+      # Checkout the MainApp repo
+      - name: Checkout MainApp
+        uses: actions/checkout@v3
+
+      # Get the version from ReferenceAppPackage event
+      - name: Read new version
+        id: vars
+        run: |
+          echo "VERSION=${{ github.event.client_payload.version }}" >> $GITHUB_ENV
+
+      # Update the ReferenceAppPackage version in Xcode project
+      - name: Update Xcode project dependency
+        run: |
+          VERSION=${VERSION}
+          echo "Updating ReferenceAppPackage to version $VERSION in Xcode project"
+
+          # Replace the old tag with the new version in project.pbxproj
+          sed -i '' "s#https://github.com/abhilasha-f-gupta/ReferenceAppPackage.git@.*#https://github.com/abhilasha-f-gupta/ReferenceAppPackage.git@$VERSION#g" MainApp.xcodeproj/project.pbxproj
+
+          # Create a new branch
+          git checkout -b update-package-to-$VERSION
+          git add MainApp.xcodeproj/project.pbxproj
+          git commit -m "Update ReferenceAppPackage to $VERSION"
+          git push origin update-package-to-$VERSION
+
+      # Create a PR in MainApp
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v5
+        with:
+          token: ${{ secrets.PAT_TOKEN }}
+          branch: update-package-to-${{ env.VERSION }}
+          base: main
+          title: "Update ReferenceAppPackage to ${{ env.VERSION }}"
+          body: "This PR updates ReferenceAppPackage to version ${{ env.VERSION }}."
