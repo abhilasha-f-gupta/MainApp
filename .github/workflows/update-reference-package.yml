@@ -50,9 +50,8 @@ jobs:
       # Create Pull Request
       - name: Create Pull Request
         env:
-          GITHUB_TOKEN: ${{ secrets.PAT_TOKEN }}
+          GH_TOKEN: ${{ secrets.PAT_TOKEN }}
         run: |
-          gh auth login --with-token <<< "${GITHUB_TOKEN}"
           gh pr create \
             --head "update-package-to-${VERSION}" \
             --base "main" \
