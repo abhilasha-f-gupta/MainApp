@@ -1,0 +1,15 @@
+{
+  "originHash" : "df8930fb97369d5a663642f1850c3c1d52406be7642459ecef6d00d0d678101c",
+  "pins" : [
+    {
+      "identity" : "referencepackage",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/abhilasha-f-gupta/ReferencePackage",
+      "state" : {
+        "revision" : "75909793514a0f24b0f77eccd180823f59241dc1",
+        "version" : "1.0.0"
+      }
+    }
+  ],
+  "version" : 3
+}
