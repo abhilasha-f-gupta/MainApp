@@ -9,7 +9,7 @@ jobs:
     runs-on: macos-latest
 
     steps:
-      # Checkout the MainApp repo
+      # Checkout the MainApp repo using PAT_TOKEN
       - name: Checkout MainApp
         uses: actions/checkout@v3
         with:
@@ -23,11 +23,12 @@ jobs:
 
       # Update the ReferenceAppPackage version in Xcode project
       - name: Update Xcode project dependency
+        id: update
         run: |
           VERSION=${VERSION}
           echo "Updating ReferenceAppPackage to version $VERSION in Xcode project"
 
-          # Debug: show the current line
+          # Debug: show current ReferenceAppPackage line
           grep "ReferenceAppPackage.git@" MainApp.xcodeproj/project.pbxproj || true
 
           # Robust sed: replace any old version after @
@@ -36,24 +37,32 @@ jobs:
           # Debug: show updated line
           grep "ReferenceAppPackage.git@" MainApp.xcodeproj/project.pbxproj || true
 
-          # Create a new branch only if there are changes
-          git checkout -b update-package-to-$VERSION
+          # Create a new branch
+          BRANCH_NAME="update-package-to-$VERSION"
+          git checkout -b $BRANCH_NAME
+
+          # Check if there are changes to commit
           git add MainApp.xcodeproj/project.pbxproj
-          
+          CHANGED=false
           if git diff --cached --quiet; then
             echo "No changes to commit. Version is already up-to-date."
           else
             git commit -m "Update ReferenceAppPackage to $VERSION"
-            git push origin update-package-to-$VERSION
+            git push origin $BRANCH_NAME
+            CHANGED=true
           fi
 
-      # Create a PR in MainApp only if changes were committed
+          # Export CHANGED flag for PR step
+          echo "CHANGED=$CHANGED" >> $GITHUB_ENV
+          echo "BRANCH_NAME=$BRANCH_NAME" >> $GITHUB_ENV
+
+      # Create a Pull Request only if changes were committed
       - name: Create Pull Request
-        if: success() && steps.update.outputs.changes == 'true'
+        if: env.CHANGED == 'true'
         uses: peter-evans/create-pull-request@v5
         with:
           token: ${{ secrets.PAT_TOKEN }}
-          branch: update-package-to-${{ env.VERSION }}
+          branch: ${{ env.BRANCH_NAME }}
           base: main
           title: "Update ReferenceAppPackage to ${{ env.VERSION }}"
           body: "This PR updates ReferenceAppPackage to version ${{ env.VERSION }}."
