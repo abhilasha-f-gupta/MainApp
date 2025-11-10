@@ -9,65 +9,30 @@ jobs:
     runs-on: macos-latest
 
     steps:
-      # Checkout the MainApp repo using PAT_TOKEN
+      # Checkout MainApp repo with full history and PAT token
       - name: Checkout MainApp
         uses: actions/checkout@v3
         with:
           token: ${{ secrets.PAT_TOKEN }}
-          fetch-depth: 0   # Ensure full history for PR creation
+          fetch-depth: 0
 
       # Get the version from ReferenceAppPackage event
       - name: Read new version
-        id: vars
         run: |
           echo "VERSION=${{ github.event.client_payload.version }}" >> $GITHUB_ENV
-          echo "Updating to version $VERSION"
+          echo "Version to update: $VERSION"
 
-      # Update the ReferenceAppPackage version in Xcode project
-      - name: Update Xcode project dependency
-        id: update
-        run: |
-          VERSION=${VERSION}
-
-          echo "Updating ReferenceAppPackage to version $VERSION in project.pbxproj"
-
-          # Debug: show current ReferenceAppPackage line
-          grep "ReferenceAppPackage.git@" MainApp.xcodeproj/project.pbxproj || true
-
-          # Robust sed: replace any old version after @
-          sed -i '' "s#\(ReferenceAppPackage.git@\)[0-9.]*#\1$VERSION#g" MainApp.xcodeproj/project.pbxproj
-
-          # Debug: show updated line
-          grep "ReferenceAppPackage.git@" MainApp.xcodeproj/project.pbxproj || true
-
-          # Create a new branch
-          BRANCH_NAME="update-package-to-$VERSION"
-          git checkout -b $BRANCH_NAME
-
-          # Commit only if there are changes
-          git add MainApp.xcodeproj/project.pbxproj
-          CHANGED=false
-          if git diff --cached --quiet; then
-            echo "No changes to commit. Version is already up-to-date."
-          else
-            git commit -m "Update ReferenceAppPackage to $VERSION"
-            # Push explicitly with HEAD so GitHub recognizes the branch
-            git push origin HEAD:$BRANCH_NAME
-            CHANGED=true
-          fi
-
-          # Export variables for PR step
-          echo "CHANGED=$CHANGED" >> $GITHUB_ENV
-          echo "BRANCH_NAME=$BRANCH_NAME" >> $GITHUB_ENV
-
-      # Create a Pull Request only if changes were committed
+      # Create Pull Request with updated ReferenceAppPackage
       - name: Create Pull Request
-        if: env.CHANGED == 'true'
         uses: peter-evans/create-pull-request@v5
         with:
           token: ${{ secrets.PAT_TOKEN }}
-          branch: ${{ env.BRANCH_NAME }}
+          branch: "update-package-to-${{ env.VERSION }}"
           base: main
+          commit-message: "Update ReferenceAppPackage to ${{ env.VERSION }}"
           title: "Update ReferenceAppPackage to ${{ env.VERSION }}"
           body: |
             This PR updates ReferenceAppPackage to version ${{ env.VERSION }} in the Xcode project.
+          update: |
+            # Replace the old ReferenceAppPackage version with the new one
+            sed -i '' "s#\(ReferenceAppPackage.git@\)[0-9.]*#\1${{ env.VERSION }}#g" MainApp.xcodeproj/project.pbxproj
